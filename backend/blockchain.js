@@ -4,32 +4,61 @@ const cryptoHash = require("./crypto-hash");
 class Blockchain {
   constructor() {
     this.chain = [Block.genesis()];
-    this.LCG = false;
-    this.HCG = false;
+    this.LCG = [];
+    this.HCG = [];
     this.blocksmined = 0;
   }
 
   addBlock({ data }) {
-    if(this.HCG){
+    
+    console.log(this.chain)
     const newBlock = Block.mineBlock({
       prevBlock: this.chain[this.chain.length - 1],
-      data,
+      data
     });
     this.chain.push(newBlock);
-  }
-  
+
   }
 
-  replaceChain(chain) {
-    if (chain.length <= this.chain.length) {
+  replaceCG(rootChain){
+    console.log("Root LCG :" ,rootChain.LCG)
+
+    console.log("Current LCG :" ,this.LCG)
+
+    if (rootChain.LCG.length < this.LCG.length || rootChain.HCG.length < this.HCG.length) {
+      console.error("new node added");
+
+      // this.chain = rootChain.chain;
+      // this.LCG = rootChain.LCG;
+      // this.HCG = rootChain.HCG;
+      // this.blocksmined = rootChain.blocksmined;
+      return;
+    }
+    else{
+      this.chain = rootChain.chain;
+      this.LCG = rootChain.LCG;
+      this.HCG = rootChain.HCG;
+      this.blocksmined = rootChain.blocksmined;
+    }
+  }
+
+  replaceChain(rootChain) {
+
+    if (rootChain.chain.length <= this.chain.length) {
+      this.replaceCG(rootChain)
       console.error("The incoming chain is not longer");
       return;
     }
-    if (!Blockchain.isValidChain(chain)) {
+    if (!Blockchain.isValidChain(rootChain.chain)) {
       console.error("The incoming chain is not valid");
       return;
     }
-    this.chain = chain;
+
+    this.chain = rootChain.chain;
+    this.LCG = rootChain.LCG;
+    this.HCG = rootChain.HCG;
+    this.blocksmined = rootChain.blocksmined;
+
   }
 
   static isValidChain(chain) {
@@ -57,11 +86,4 @@ class Blockchain {
   }
 }
 
-// const blockchain = new Blockchain();
-// blockchain.addBlock({ data: "Block1" });
-// blockchain.addBlock({ data: "Block2" });
-// const result = Blockchain.isValidChain(blockchain.chain);
-// console.log(blockchain.chain);
-// console.log(result);
-// //console.log(blockchain);
 module.exports = Blockchain;

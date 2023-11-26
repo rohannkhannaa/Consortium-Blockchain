@@ -4,6 +4,7 @@ const CHANNELS = {
   TEST: "TEST",
   BLOCKCHAIN: "BLOCKCHAIN",
 };
+
 class PubSub {
   constructor({ blockchain }) {
     this.blockchain = blockchain;
@@ -31,7 +32,7 @@ class PubSub {
   broadcastChain() {
     this.publish({
       channel: CHANNELS.BLOCKCHAIN,
-      message: JSON.stringify(this.blockchain.chain),
+      message: JSON.stringify(this.blockchain),
     });
   }
 }

@@ -1,9 +1,9 @@
 const bodyParser = require("body-parser");
 const express = require("express");
-const request = require("request");
+const request = require("./await-request");
 const Blockchain = require("./blockchain");
 const PubSub = require("./publishsubscribe");
-const Refresh_CN = require("./config")
+const config = require("./config")
 
 const app = express();
 const blockchain = new Blockchain();
@@ -15,74 +15,167 @@ setTimeout(() => pubsub.broadcastChain(), 1000);
 
 app.use(bodyParser.json());
 app.get("/api/blocks", (req, res) => {
-  res.json(blockchain.chain);
+  res.json(blockchain);
 });
 
-let LCG=[];
-let HCG=[];
 
 app.post("/api/mine", (req, res) => {
   const { data } = req.body;
 
+  
+  let servername = "http://localhost:"+listener.address().port;
+  console.log("------------------------------------------- Mininig -------------------------------------------------")
+  
+  blockchain.HCG.forEach(element => {
+    if(Object.keys(element)[0] == servername && element[servername]){
+      if(blockchain.blocksmined <= config.Refresh_CN){
+        blockchain.addBlock({ data });
+        blockchain.blocksmined = blockchain.blocksmined+1;
+        pubsub.broadcastChain();
+        res.redirect("/api/blocks");
+      }
+      else{
+        synRoles();
+        synChains();
+        redirectReqToHCG(data)
+      }
+    }
+    else{
+      redirectReqToHCG(data)
+    }
+  });
+  
+  async function redirectReqToHCG(data){
+    let serverToRedirect = Object.keys(blockchain.HCG[0])[0];
+
+    try {
+      const result = await request({ url: `${serverToRedirect}/api/mine`, method: 'POST', body : {"data":data} })
+      
+      console.log(result)
+      if (true) {
+        const rootChain = JSON.parse(result);
+        console.log("Replace chain on sync with", rootChain);
+
+        blockchain.replaceChain(rootChain);
+        console.log(" --------------------Completed chain replacement------------------------------")
+      }
+  }
+  catch (err) {
+      console.error(err)
+  }
+  }
+
+//   blockchain.HCG.forEach((arr)=>{
+
+//     if (arr.first=="def"){
+//       console.log(arr.badge);
+//     }
+//   });
+//  if(current.){
+  
+//  }
+
  
-  if(blockchain.blocksmined <= Refresh_CN){
-    blockchain.addBlock({ data });
-    blockchain.blocksmined = blockchain.blocksmined+1;
-    pubsub.broadcastChain();
-    res.redirect("/api/blocks");
-  }
-  else{
-    // synRoles();
-    synChains();
-  }
   
  
 });
 
 const synRoles = () => {
   blockchain.blocksmined = 0;
-  let totalnodes = LCG.length;
 
-  for(let i=0;i<totalnodes/3;i++){
-    const rndInt = Math.floor(Math.random() * 6) + 1;
-    HCG[rndInt] = true;
-  }
-
-  HCG.forEach(element => {
-    if(!element){
-      element = true;
+  let count = 0
+  blockchain.HCG.forEach(element => {
+    if(Math.floor(Math.random() * 6)>=3){
+      element[Object.keys(element)[0]] = false;
+      blockchain.LCG[Object.keys(blockchain.LCG)[0]] = true;
+      count++;
+    }
+    else{
+      element[Object.keys(element)[0]] = true;
+      blockchain.LCG[Object.keys(blockchain.LCG)[0]] = false;
+      count++;
     }
   });
+
 }
 
-const synChains = () => {
- 
+ async function synChains () {
 
-  request(
-    { url: `${ROOT_NODE_ADDRESS}/api/blocks` },
-    (error, reposnse, body) => {
-      if (!error && reposnse.statusCode === 200) {
-        const rootChain = JSON.parse(body);
-        console.log("Replace chain on sync with", rootChain);
-        blockchain.replaceChain(rootChain);
-      }
+    try {
+        const result = await request({ url: `${ROOT_NODE_ADDRESS}/api/blocks` })
+        console.log(result)
+        if (true) {
+          const rootChain = JSON.parse(result);
+          console.log("Replace chain on sync with", rootChain);
+  
+          blockchain.replaceChain(rootChain);
+          console.log(" --------------------Completed chain replacement------------------------------")
+        }
     }
-  );
+    catch (err) {
+        console.error(err)
+    }
+
+  console.log(" --------------------Completed chain sync------------------------------")
+
+
 };
 
-let PEER_PORT;
+let PEER_PORT=null;
 
-if (process.env.GENERATE_PEER_PORT === "true") {
-  PEER_PORT = DEFAULT_PORT + Math.ceil(Math.random() * 1000);
-}
+// if (process.env.GENERATE_PEER_PORT === "true") {
+//   PEER_PORT = DEFAULT_PORT + Math.ceil(Math.random() * 1000);
+// }
 const PORT = PEER_PORT || DEFAULT_PORT;
-app.listen(PORT, () => {
-  console.log(`listening to PORT:${PORT}`);
-  synChains();
-  let servername = "http://localhost:"+PORT;
-
-  LCG.push({[servername] :false});
-  HCG.push({[servername] :false});
-
-  console.log(LCG)
+PEER_PORT = PORT
+let listener = app.listen(PORT, async () => {
+  await settingServer(PORT)
+})
+.on('error', async function(err) { 
+  if(err.code == 'EADDRINUSE'){
+    PEER_PORT = DEFAULT_PORT + Math.ceil(Math.random() * 1000);
+  }
+  await settingServer(PEER_PORT)
+  console.log("Error occurred---------------------------------",err.code)
 });
+
+
+
+async function settingServer(PEER_PORT){
+  console.log(`listening to PORT:${PEER_PORT}`);
+  
+  let servername = "http://localhost:"+PEER_PORT;
+
+  console.log("1. --------------------------------------------------")
+  await synChains();
+  console.log("2. --------------------------------------------------")
+
+  
+  console.log(blockchain)
+
+  let count1 = 0;
+  blockchain.HCG.forEach(element => {
+    if(element[Object.keys(element)[0]] == true){
+      count1++;
+    }
+  });
+
+  if(count1 <=blockchain.HCG.length/3){
+    blockchain.LCG.push({[servername] :false});
+    blockchain.HCG.push({[servername] :true});
+  }
+  else{
+    blockchain.LCG.push({[servername] :true});
+    blockchain.HCG.push({[servername] :false});
+  }
+  
+  // pubsub.broadcastChain();
+
+  console.log("3. --------------------------------------------------")
+
+  console.log(blockchain)
+  await synChains();
+
+  console.log(blockchain.LCG)
+}
+;
